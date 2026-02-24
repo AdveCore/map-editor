@@ -21,6 +21,11 @@
             <div class="toolbar-group">
                 <button id="btn-undo" class="tool-btn">&#x21b6; Cofnij</button>
                 <button id="btn-eraser" class="tool-btn">&#x1f9f9; Gumka</button>
+                <button id="btn-export" class="tool-btn">&#x1f5be; Eksportuj</button>
+                <button id="btn-save-map" class="tool-btn">&#x1f4be; Zapisz mapę</button>
+                <button id="btn-load-map" class="tool-btn">&#x1f4c2; Wczytaj mapę</button>
+                <button id="btn-favorites" class="tool-btn">&#x2b50; Ulubione</button>
+                <button id="btn-cave" class="tool-btn">&#x1f5d1; Jaskinia</button>
                 <button id="btn-grid" class="tool-btn active">&#x229e; Siatka</button>
                 <button id="btn-reset-zoom" class="tool-btn">&#x1f50d; Reset zoom</button>
                 <button id="btn-last-tile" class="tool-btn">&#x1f449; Ostatni kafelek</button>
@@ -49,12 +54,15 @@
                 <h3>&#x1f3a8; Tileset Library</h3>
                 <div class="library-controls">
                     <button id="btn-manage-library" class="tool-btn">&#x1f5da; Zarządzaj biblioteką</button>
+                    <button id="btn-manage-uploads" class="tool-btn">&#x1f527; Zarządzaj uploadami</button>
                     <button id="btn-export-library" class="tool-btn">&#x1f517; Eksportuj bibliotekę</button>
                     <button id="btn-import-library" class="tool-btn">&#x1f515; Importuj bibliotekę</button>
+                    <button id="btn-cloud-config" class="tool-btn">&#x2699; Konfiguracja chmury</button>
                 </div>
                 <div class="upload-section">
                     <label for="tileset-upload" class="upload-label">&#x1f4c2; Wgraj Tileset (.png / .jpg)</label>
                     <input type="file" id="tileset-upload" accept=".png,.jpg,.jpeg">
+                    <button id="btn-upload-to-library" class="tool-btn" style="margin-top: 8px;">📤 Wgraj do biblioteki</button>
                 </div>
                 <div id="tileset-list"></div>
                 <div id="palette-container">
@@ -88,6 +96,264 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Upload Tileset Modal -->
+            <div id="upload-modal" class="modal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2>&#x1f4c2; Wgraj Tileset do Biblioteki</h2>
+                        <button class="modal-close">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="upload-form">
+                            <div class="disclaimer">
+                                <h4>⚖️ Ważne - Prawne warunki</h4>
+                                <p>Wgrywając tileset oświadczasz że:</p>
+                                <ul>
+                                    <li>Masz pełne prawa do udostępnienia tego pliku</li>
+                                    <li>Tileset jest licencjonowany jako darmowy do użytku komercyjnego i niekomercyjnego</li>
+                                    <li>Nie narusza praw autorskich żadnej trzeciej strony</li>
+                                    <li>Przyjmujesz pełną odpowiedzialność za wgrany content</li>
+                                </ul>
+                                <p><strong>Nielegalne treści zostaną usunięte, a konto zablokowane.</strong></p>
+                            </div>
+                            <div class="form-group">
+                                <label for="upload-file">Plik tilesetu:</label>
+                                <input type="file" id="upload-file" accept=".png,.jpg,.jpeg" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="upload-name">Nazwa:</label>
+                                <input type="text" id="upload-name" placeholder="np. Forest Tiles" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="upload-description">Opis:</label>
+                                <textarea id="upload-description" placeholder="Opis tilesetu..." rows="3"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label for="upload-license">Licencja:</label>
+                                <select id="upload-license" required>
+                                    <option value="CC0">CC0 - Public Domain (Free for all)</option>
+                                    <option value="CC-BY">CC-BY - Attribution</option>
+                                    <option value="CC-BY-SA">CC-BY-SA - ShareAlike</option>
+                                    <option value="MIT">MIT License</option>
+                                    <option value="Free">Free for commercial & non-commercial</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="upload-tags">Tagi (przecinkami):</label>
+                                <input type="text" id="upload-tags" placeholder="np. forest, nature, trees">
+                            </div>
+                            <div class="form-group">
+                                <label for="github-token">GitHub Token (dla uploadu):</label>
+                                <input type="password" id="github-token" placeholder="ghp_...">
+                                <small>Token z GitHub → Settings → Developer settings → Personal access tokens</small>
+                            </div>
+                            <div class="form-actions">
+                                <button id="btn-cancel-upload" class="tool-btn">Anuluj</button>
+                                <button id="btn-confirm-upload" class="tool-btn">📤 Wgraj tileset</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cloud Save/Load Modal -->
+        <div id="cloud-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>&#x2601; Zarządzanie Mapami w Chmurze</h2>
+                    <button class="modal-close">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="cloud-tabs">
+                        <button id="cloud-save-tab" class="tab-btn active">Zapisz mapę</button>
+                        <button id="cloud-load-tab" class="tab-btn">Wczytaj mapę</button>
+                    </div>
+                    
+                    <!-- Save Tab -->
+                    <div id="cloud-save-panel" class="tab-panel active">
+                        <div class="form-group">
+                            <label for="cloud-map-name">Nazwa mapy:</label>
+                            <input type="text" id="cloud-map-name" placeholder="np. My Adventure Map" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="cloud-map-desc">Opis:</label>
+                            <textarea id="cloud-map-desc" placeholder="Opis mapy..." rows="3"></textarea>
+                        </div>
+                        <div class="form-actions">
+                            <button id="btn-confirm-cloud-save" class="tool-btn">&#x2601; Zapisz w chmurze</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Load Tab -->
+                    <div id="cloud-load-panel" class="tab-panel">
+                        <div class="cloud-maps-list" id="cloud-maps-list">
+                            <p class="loading-message">Ładowanie map...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Upload Management Modal -->
+        <div id="upload-management-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>&#x1f527; Zarządzanie Uploadami</h2>
+                    <button class="modal-close">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="admin-section">
+                        <h3>&#x1f511; Użytkownicy z uprawnieniami</h3>
+                        <div class="user-list" id="approved-users">
+                            <!-- Lista zatwierdzonych użytkowników -->
+                        </div>
+                        <div class="add-user-section">
+                            <input type="text" id="new-username" placeholder="GitHub username">
+                            <button id="btn-add-user" class="tool-btn">➕ Dodaj użytkownika</button>
+                        </div>
+                    </div>
+                    
+                    <div class="admin-section">
+                        <h3>&#x23f3; Oczekujące uploady</h3>
+                        <div class="pending-uploads" id="pending-uploads">
+                            <p class="loading-message">Brak oczekujących uploadów</p>
+                        </div>
+                    </div>
+                    
+                    <div class="admin-section">
+                        <h3>&#x1f5d1; Zgłoszone treści</h3>
+                        <div class="reported-content" id="reported-content">
+                            <p class="loading-message">Brak zgłoszonych treści</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Map Management Modal -->
+        <div id="map-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>&#x1f4c2; Zarządzanie Mapami</h2>
+                    <div class="user-info">
+                        <span>&#x1f464; <span id="current-user-name">User1234</span></span>
+                        <button id="btn-change-name" class="tool-btn small">Zmień</button>
+                    </div>
+                    <button class="modal-close">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="map-tabs">
+                        <button id="map-save-tab" class="tab-btn active">Zapisz mapę</button>
+                        <button id="map-load-tab" class="tab-btn">Wczytaj mapę</button>
+                        <button id="map-favorites-tab" class="tab-btn">⭐ Ulubione</button>
+                    </div>
+                    
+                    <!-- Save Tab -->
+                    <div id="map-save-panel" class="tab-panel active">
+                        <div class="form-group">
+                            <label for="local-map-name">Nazwa mapy:</label>
+                            <input type="text" id="local-map-name" placeholder="np. My Castle" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="map-category">Kategoria:</label>
+                            <select id="map-category">
+                                <option value="castle">🏰 Zamek</option>
+                                <option value="city">🏙️ Miasto</option>
+                                <option value="forest">🌲 Las</option>
+                                <option value="cave">⛰️ Jaskinia</option>
+                                <option value="dungeon">🗝️ Loch</option>
+                                <option value="village">🏘️ Wioska</option>
+                                <option value="mountain">🏔️ Góry</option>
+                                <option value="beach">🏄 Plaża</option>
+                                <option value="other">📄 Inne</option>
+                            </select>
+                        </div>
+                        <div class="form-actions">
+                            <button id="btn-confirm-save-map" class="tool-btn">&#x1f4be; Zapisz mapę</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Load Tab -->
+                    <div id="map-load-panel" class="tab-panel">
+                        <div class="category-filter">
+                            <label>Filtruj kategorię:</label>
+                            <select id="category-filter">
+                                <option value="all">Wszystkie</option>
+                                <option value="castle">🏰 Zamek</option>
+                                <option value="city">🏙️ Miasto</option>
+                                <option value="forest">🌲 Las</option>
+                                <option value="cave">⛰️ Jaskinia</option>
+                                <option value="dungeon">🗝️ Loch</option>
+                                <option value="village">🏘️ Wioska</option>
+                                <option value="mountain">🏔️ Góry</option>
+                                <option value="beach">🏄 Plaża</option>
+                                <option value="other">📄 Inne</option>
+                            </select>
+                        </div>
+                        <div class="local-maps-list" id="local-maps-list">
+                            <p class="loading-message">Brak zapisanych map</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Favorites Tab -->
+                    <div id="map-favorites-panel" class="tab-panel">
+                        <div class="favorites-list" id="favorites-list">
+                            <p class="loading-message">Brak ulubionych map</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Login Modal -->
+        <div id="login-modal" class="modal" style="display: block;">
+            <div class="modal-content" style="max-width: 400px;">
+                <div class="modal-header">
+                    <h2>🔐 Logowanie</h2>
+                </div>
+                <div class="modal-body">
+                    <div class="login-tabs">
+                        <button id="login-tab" class="tab-btn active">Zaloguj się</button>
+                        <button id="register-tab" class="tab-btn">Zarejestruj</button>
+                    </div>
+                    
+                    <!-- Login Panel -->
+                    <div id="login-panel" class="tab-panel active">
+                        <div class="form-group">
+                            <label for="login-username">Login:</label>
+                            <input type="text" id="login-username" placeholder="Twój login" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="login-password">Hasło:</label>
+                            <input type="password" id="login-password" placeholder="Twoje hasło" required>
+                        </div>
+                        <div class="form-actions">
+                            <button id="btn-login" class="tool-btn">🔓 Zaloguj się</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Register Panel -->
+                    <div id="register-panel" class="tab-panel">
+                        <div class="form-group">
+                            <label for="register-username">Login:</label>
+                            <input type="text" id="register-username" placeholder="Wybierz login" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="register-password">Hasło:</label>
+                            <input type="password" id="register-password" placeholder="Min. 6 znaków" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="register-password-confirm">Powtórz hasło:</label>
+                            <input type="password" id="register-password-confirm" placeholder="Powtórz hasło" required>
+                        </div>
+                        <div class="form-actions">
+                            <button id="btn-register" class="tool-btn">✅ Zarejestruj się</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Status Bar -->
@@ -99,6 +365,7 @@
         </div>
     </div>
 
+    <script src="config.js"></script>
     <script src="game.js"></script>
 </body>
 </html>

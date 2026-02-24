@@ -661,6 +661,12 @@ class EditorScene extends Phaser.Scene {
         // Tileset library system
         this.tilesetLibrary = new TilesetLibrary();
 
+        // Cloud save system
+        this.cloudSave = new CloudSaveManager();
+        
+        // User system
+        this.userManager = new UserManager();
+
         // Render containers (order matters: ground → deco → grid)
         this.groundGroup = this.add.container(0, 0);
         this.decoGroup   = this.add.container(0, 0);
@@ -1247,6 +1253,18 @@ class EditorScene extends Phaser.Scene {
             }
         });
 
+
+        // Upload modal close
+        document.querySelector('#upload-modal .modal-close').addEventListener('click', () => {
+            this._hideUploadModal();
+        });
+
+        document.getElementById('upload-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'upload-modal') {
+                this._hideUploadModal();
+            }
+        });
+
         // Export
         document.getElementById('btn-export').addEventListener('click', () => {
             this._exportJSON();
@@ -1255,6 +1273,113 @@ class EditorScene extends Phaser.Scene {
         // Cave generator
         document.getElementById('btn-cave').addEventListener('click', () => {
             this._generateCave();
+        });
+
+        // Login/Register
+        document.getElementById('login-tab').addEventListener('click', () => {
+            this._switchLoginTab('login');
+        });
+
+        document.getElementById('register-tab').addEventListener('click', () => {
+            this._switchLoginTab('register');
+        });
+
+        document.getElementById('btn-login').addEventListener('click', () => {
+            this._handleLogin();
+        });
+
+        document.getElementById('btn-register').addEventListener('click', () => {
+            this._handleRegister();
+        });
+
+        // Map management
+        document.getElementById('btn-save-map').addEventListener('click', () => {
+            if (!this.userManager.isLoggedIn()) {
+                alert('Musisz być zalogowany!');
+                return;
+            }
+            this._showMapModal('save');
+        });
+
+        document.getElementById('btn-load-map').addEventListener('click', () => {
+            if (!this.userManager.isLoggedIn()) {
+                alert('Musisz być zalogowany!');
+                return;
+            }
+            this._showMapModal('load');
+        });
+
+        document.getElementById('btn-favorites').addEventListener('click', () => {
+            if (!this.userManager.isLoggedIn()) {
+                alert('Musisz być zalogowany!');
+                return;
+            }
+            this._showMapModal('favorites');
+        });
+
+        // Map modal tabs
+        document.getElementById('map-save-tab').addEventListener('click', () => {
+            this._switchMapTab('save');
+        });
+
+        document.getElementById('map-load-tab').addEventListener('click', () => {
+            this._switchMapTab('load');
+        });
+
+        document.getElementById('map-favorites-tab').addEventListener('click', () => {
+            this._switchMapTab('favorites');
+        });
+
+        document.getElementById('btn-confirm-save-map').addEventListener('click', () => {
+            this._confirmSaveMap();
+        });
+
+        document.getElementById('category-filter').addEventListener('change', () => {
+            this._loadLocalMaps();
+        });
+
+        // Map modal close
+        document.querySelector('#map-modal .modal-close').addEventListener('click', () => {
+            this._hideMapModal();
+        });
+
+        document.getElementById('map-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'map-modal') {
+                this._hideMapModal();
+            }
+        });
+
+        // Cloud save/load
+        document.getElementById('btn-cloud-save').addEventListener('click', () => {
+            this._showCloudModal('save');
+        });
+
+        document.getElementById('btn-cloud-load').addEventListener('click', () => {
+            this._showCloudModal('load');
+        });
+
+        // Cloud modal events
+        document.getElementById('cloud-save-tab').addEventListener('click', () => {
+            this._switchCloudTab('save');
+        });
+
+        document.getElementById('cloud-load-tab').addEventListener('click', () => {
+            this._switchCloudTab('load');
+        });
+
+        document.getElementById('btn-confirm-cloud-save').addEventListener('click', () => {
+            this._confirmCloudSave();
+        });
+
+        // Cloud modal close
+        document.querySelector('#cloud-modal .modal-close').addEventListener('click', () => {
+            this._hideCloudModal();
+        });
+
+        document.getElementById('cloud-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'cloud-modal') {
+                this._hideCloudModal();
+            }
         });
     }
 
@@ -1296,12 +1421,17 @@ class EditorScene extends Phaser.Scene {
         
         const state = this.undoStack.pop();
         
-        // Restore ground layer
+        // Clear all tiles
         for (let y = 0; y < CONFIG.MAP_HEIGHT; y++) {
             for (let x = 0; x < CONFIG.MAP_WIDTH; x++) {
                 this._clearTile('ground', x, y);
                 this._clearTile('decoration', x, y);
-                
+            }
+        }
+        
+        // Restore ground layer
+        for (let y = 0; y < CONFIG.MAP_HEIGHT; y++) {
+            for (let x = 0; x < CONFIG.MAP_WIDTH; x++) {
                 const groundTile = state.ground[y][x];
                 const decoTile = state.decoration[y][x];
                 
@@ -1375,7 +1505,7 @@ class EditorScene extends Phaser.Scene {
 
     _showLibraryModal() {
         document.getElementById('library-modal').style.display = 'block';
-        this._updateLibraryModal();
+        this._updateLayerIndicators();
     }
 
     _hideLibraryModal() {
@@ -1467,6 +1597,78 @@ class EditorScene extends Phaser.Scene {
         input.click();
     }
 
+    _showUploadModal() {
+        document.getElementById('upload-modal').style.display = 'block';
+        
+        // Load saved token
+        const savedToken = this.tilesetLibrary.loadGitHubToken();
+        if (savedToken) {
+            document.getElementById('github-token').value = savedToken;
+        }
+    }
+
+    _hideUploadModal() {
+        document.getElementById('upload-modal').style.display = 'none';
+        // Clear form
+        document.getElementById('upload-file').value = '';
+        document.getElementById('upload-name').value = '';
+        document.getElementById('upload-description').value = '';
+        document.getElementById('upload-tags').value = '';
+    }
+
+    async _confirmUpload() {
+        const file = document.getElementById('upload-file').files[0];
+        const name = document.getElementById('upload-name').value.trim();
+        const description = document.getElementById('upload-description').value.trim();
+        const license = document.getElementById('upload-license').value;
+        const tags = document.getElementById('upload-tags').value
+            .split(',')
+            .map(t => t.trim())
+            .filter(t => t);
+        const token = document.getElementById('github-token').value.trim();
+
+        if (!file) {
+            alert('Wybierz plik tilesetu!');
+            return;
+        }
+
+        if (!name) {
+            alert('Podaj nazwę tilesetu!');
+            return;
+        }
+
+        if (!token) {
+            alert('Podaj GitHub token!');
+            return;
+        }
+
+        // Save token
+        this.tilesetLibrary.setGitHubToken(token);
+
+        try {
+            // Show loading
+            const btn = document.getElementById('btn-confirm-upload');
+            const originalText = btn.textContent;
+            btn.textContent = '⏳ Wgrywanie...';
+            btn.disabled = true;
+
+            await this.tilesetLibrary.uploadTileset(file, name, description, license, tags);
+
+            alert('Tileset został pomyślnie wgrany do biblioteki!');
+            this._hideUploadModal();
+            this._updateLibraryModal();
+
+        } catch (error) {
+            console.error('Upload failed:', error);
+            alert('Błąd podczas wgrywania: ' + error.message);
+        } finally {
+            // Restore button
+            const btn = document.getElementById('btn-confirm-upload');
+            btn.textContent = originalText;
+            btn.disabled = false;
+        }
+    }
+
     async _loadLibraryOnStartup() {
         const tilesets = this.tilesetLibrary.getAllTilesets();
         
@@ -1539,14 +1741,575 @@ class EditorScene extends Phaser.Scene {
     }
 }
 
-/* ═══════════════════════════════════════════
+/* ═══════════════════════════════════════════════════════════════
+   CloudSaveManager
+   Save/load maps using GitHub Gist API
+   ═══════════════════════════════════════════════════════════════ */
+class CloudSaveManager {
+    constructor() {
+        this.githubToken = null;
+        this.loadToken();
+    }
+
+    loadToken() {
+        this.githubToken = localStorage.getItem('github_token');
+    }
+
+    setToken(token) {
+        this.githubToken = token;
+        localStorage.setItem('github_token', token);
+    }
+
+    async saveMap(mapData, mapName, description = '') {
+        if (!this.githubToken) {
+            throw new Error('GitHub token required for cloud save');
+        }
+
+        try {
+            const gistData = {
+                description: `${mapName} - Tibia Map Editor ${new Date().toLocaleDateString()}`,
+                public: false, // Private gist
+                files: {
+                    [`${mapName}.json`]: {
+                        content: JSON.stringify(mapData, null, 2)
+                    },
+                    'metadata.json': {
+                        content: JSON.stringify({
+                            name: mapName,
+                            description: description,
+                            created: new Date().toISOString(),
+                            editor: 'Tibia Map Editor',
+                            version: '1.0'
+                        })
+                    }
+                }
+            };
+
+            const response = await fetch('https://api.github.com/gists', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `token ${this.githubToken}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(gistData)
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to save map to cloud');
+            }
+
+            const gist = await response.json();
+            return {
+                id: gist.id,
+                url: gist.html_url,
+                mapUrl: gist.files[`${mapName}.json`].raw_url
+            };
+
+        } catch (error) {
+            console.error('Cloud save failed:', error);
+            throw error;
+        }
+    }
+
+    async loadMap(gistId) {
+        if (!this.githubToken) {
+            throw new Error('GitHub token required for cloud load');
+        }
+
+        try {
+            const response = await fetch(`https://api.github.com/gists/${gistId}`, {
+                headers: {
+                    'Authorization': `token ${this.githubToken}`
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to load map from cloud');
+            }
+
+            const gist = await response.json();
+            
+            // Find the map file
+            const mapFile = Object.values(gist.files).find(file => 
+                file.filename.endsWith('.json') && file.filename !== 'metadata.json'
+            );
+
+            if (!mapFile) {
+                throw new Error('Map file not found in gist');
+            }
+
+            return {
+                mapData: JSON.parse(mapFile.content),
+                metadata: JSON.parse(gist.files['metadata.json']?.content || '{}'),
+                url: gist.html_url
+            };
+
+        } catch (error) {
+            console.error('Cloud load failed:', error);
+            throw error;
+        }
+    }
+
+    async listMaps() {
+        if (!this.githubToken) {
+            return [];
+        }
+
+        try {
+            const response = await fetch('https://api.github.com/gists', {
+                headers: {
+                    'Authorization': `token ${this.githubToken}`
+                }
+            });
+
+            if (!response.ok) {
+                return [];
+            }
+
+            const gists = await response.json();
+            
+            return gists
+                .filter(gist => 
+                    gist.description && 
+                    gist.description.includes('Tibia Map Editor')
+                )
+                .map(gist => ({
+                    id: gist.id,
+                    name: this.extractMapName(gist.description),
+                    description: gist.description,
+                    created: gist.created_at,
+                    updated: gist.updated_at,
+                    url: gist.html_url
+                }));
+
+        } catch (error) {
+            console.error('Failed to list maps:', error);
+            return [];
+        }
+    }
+
+    extractMapName(description) {
+        const match = description.match(/^([^ -]+)/);
+        return match ? match[1] : 'Untitled Map';
+    }
+
+    async deleteMap(gistId) {
+        if (!this.githubToken) {
+            throw new Error('GitHub token required for cloud delete');
+        }
+
+        try {
+            const response = await fetch(`https://api.github.com/gists/${gistId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `token ${this.githubToken}`
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to delete map from cloud');
+            }
+
+            return true;
+
+        } catch (error) {
+            console.error('Cloud delete failed:', error);
+            throw error;
+        }
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   UserManager
+   Simple user identification and map management
+   ═══════════════════════════════════════════════════════════════ */
+class UserManager {
+    constructor() {
+        this.currentUser = null;
+        this.maps = {};
+        this.favorites = [];
+        this.cloudApiUrl = 'https://api.jsonbin.io/v3/b'; // Darmowe API do przechowywania JSON
+        this.loadCurrentSession();
+    }
+
+    loadCurrentSession() {
+        const session = localStorage.getItem('tibia_editor_session');
+        if (session) {
+            this.currentUser = JSON.parse(session);
+            this.maps = this.loadMaps();
+            this.favorites = this.loadFavorites();
+        }
+    }
+
+    async register(username, password) {
+        if (!username || !password) {
+            throw new Error('Username and password required');
+        }
+
+        if (password.length < 6) {
+            throw new Error('Password must be at least 6 characters');
+        }
+
+        // Check if user exists
+        const existingUser = localStorage.getItem(`user_${username}`);
+        if (existingUser) {
+            throw new Error('Username already exists');
+        }
+
+        // Create user
+        const user = {
+            id: this.generateId(),
+            username: username,
+            passwordHash: this.hashPassword(password),
+            createdAt: new Date().toISOString(),
+            cloudBinId: null // Will store JSONBin ID for cloud storage
+        };
+
+        // Save user
+        localStorage.setItem(`user_${username}`, JSON.stringify(user));
+        
+        // Auto-login
+        await this.login(username, password);
+        
+        return user;
+    }
+
+    async login(username, password) {
+        const userData = localStorage.getItem(`user_${username}`);
+        
+        if (!userData) {
+            throw new Error('Invalid username or password');
+        }
+
+        const user = JSON.parse(userData);
+        const passwordHash = this.hashPassword(password);
+
+        if (user.passwordHash !== passwordHash) {
+            throw new Error('Invalid username or password');
+        }
+
+        // Create session
+        this.currentUser = {
+            id: user.id,
+            username: user.username,
+            cloudBinId: user.cloudBinId
+        };
+
+        localStorage.setItem('tibia_editor_session', JSON.stringify(this.currentUser));
+        
+        // Load user data
+        this.maps = this.loadMaps();
+        this.favorites = this.loadFavorites();
+
+        // Sync from cloud if available
+        if (user.cloudBinId) {
+            await this.syncFromCloud();
+        }
+
+        return this.currentUser;
+    }
+
+    logout() {
+        localStorage.removeItem('tibia_editor_session');
+        this.currentUser = null;
+        this.maps = {};
+        this.favorites = [];
+    }
+
+    isLoggedIn() {
+        return this.currentUser !== null;
+    }
+
+    hashPassword(password) {
+        // Simple hash (in production use bcrypt or similar)
+        let hash = 0;
+        for (let i = 0; i < password.length; i++) {
+            const char = password.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash;
+        }
+        return hash.toString(36);
+    }
+
+    saveUser(user) {
+        localStorage.setItem('tibia_editor_user', JSON.stringify(user));
+        this.currentUser = user;
+    }
+
+    generateId() {
+        return 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    }
+
+    updateUserName(newName) {
+        if (newName && newName.trim()) {
+            this.currentUser.name = newName.trim();
+            this.saveUser(this.currentUser);
+            return true;
+        }
+        return false;
+    }
+
+    // Map management
+    loadMaps() {
+        if (!this.currentUser) return {};
+        const maps = localStorage.getItem(`maps_${this.currentUser.id}`);
+        return maps ? JSON.parse(maps) : {};
+    }
+
+    saveMaps() {
+        if (!this.currentUser) return;
+        localStorage.setItem(`maps_${this.currentUser.id}`, JSON.stringify(this.maps));
+    }
+
+    saveMap(name, mapData, category = 'other') {
+        if (!this.currentUser) {
+            throw new Error('Must be logged in to save maps');
+        }
+
+        if (!this.maps) {
+            this.maps = {};
+        }
+
+        this.maps[name] = {
+            name: name,
+            category: category,
+            data: mapData,
+            createdAt: this.maps[name]?.createdAt || new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+        };
+
+        this.saveMaps();
+        return true;
+    }
+
+    loadMap(name) {
+        if (this.maps && this.maps[name]) {
+            return this.maps[name];
+        }
+        return null;
+    }
+
+    deleteMap(name) {
+        if (this.maps && this.maps[name]) {
+            delete this.maps[name];
+            this.saveMaps();
+            return true;
+        }
+        return false;
+    }
+
+    getMapsList() {
+        if (!this.maps) return [];
+        return Object.keys(this.maps).map(name => ({
+            name: name,
+            category: this.maps[name].category,
+            createdAt: this.maps[name].createdAt,
+            updatedAt: this.maps[name].updatedAt
+        }));
+    }
+
+    getMapsByCategory(category) {
+        return this.getMapsList().filter(map => map.category === category);
+    }
+
+    // Cloud sync methods
+    async syncToCloud() {
+        if (!this.currentUser) {
+            throw new Error('Must be logged in to sync to cloud');
+        }
+
+        const cloudData = {
+            userId: this.currentUser.id,
+            username: this.currentUser.username,
+            maps: this.maps,
+            favorites: this.favorites,
+            lastSync: new Date().toISOString()
+        };
+
+        try {
+            const apiKey = this.getApiKey();
+            if (!apiKey) {
+                throw new Error('API key not configured. Please set up cloud storage.');
+            }
+
+            if (this.currentUser.cloudBinId) {
+                // Update existing bin
+                const response = await fetch(`${this.cloudApiUrl}/${this.currentUser.cloudBinId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Master-Key': apiKey
+                    },
+                    body: JSON.stringify(cloudData)
+                });
+
+                if (!response.ok) throw new Error('Failed to update cloud data');
+            } else {
+                // Create new bin
+                const response = await fetch(this.cloudApiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Master-Key': apiKey
+                    },
+                    body: JSON.stringify(cloudData)
+                });
+
+                if (!response.ok) throw new Error('Failed to create cloud data');
+
+                const result = await response.json();
+                this.currentUser.cloudBinId = result.metadata.id;
+
+                // Update user record with cloud bin ID
+                const userData = localStorage.getItem(`user_${this.currentUser.username}`);
+                if (userData) {
+                    const user = JSON.parse(userData);
+                    user.cloudBinId = this.currentUser.cloudBinId;
+                    localStorage.setItem(`user_${this.currentUser.username}`, JSON.stringify(user));
+                }
+            }
+
+            return true;
+        } catch (error) {
+            console.error('Cloud sync failed:', error);
+            throw error;
+        }
+    }
+
+    async syncFromCloud() {
+        if (!this.currentUser || !this.currentUser.cloudBinId) {
+            return false;
+        }
+
+        try {
+            const apiKey = this.getApiKey();
+            if (!apiKey) {
+                console.warn('API key not configured, skipping cloud sync');
+                return false;
+            }
+
+            const response = await fetch(`${this.cloudApiUrl}/${this.currentUser.cloudBinId}/latest`, {
+                headers: {
+                    'X-Master-Key': apiKey
+                }
+            });
+
+            if (!response.ok) throw new Error('Failed to fetch cloud data');
+
+            const result = await response.json();
+            const cloudData = result.record;
+
+            // Merge cloud data with local
+            this.maps = cloudData.maps || {};
+            this.favorites = cloudData.favorites || [];
+
+            // Save to local storage
+            this.saveMaps();
+            this.saveFavorites();
+
+            return true;
+        } catch (error) {
+            console.error('Cloud sync failed:', error);
+            return false;
+        }
+    }
+
+    getApiKey() {
+        // Try to get from config.js (not in repo)
+        if (typeof window !== 'undefined' && window.CONFIG_KEYS && window.CONFIG_KEYS.JSONBIN_MASTER_KEY) {
+            const key = window.CONFIG_KEYS.JSONBIN_MASTER_KEY;
+            if (key !== 'YOUR_JSONBIN_MASTER_KEY_HERE') {
+                return key;
+            }
+        }
+        
+        // Try to get from localStorage (client-side)
+        const storedKey = localStorage.getItem('jsonbin_api_key');
+        if (storedKey) {
+            return storedKey;
+        }
+        
+        // Fallback - user needs to set it manually
+        return null;
+    }
+
+    setApiKey(apiKey) {
+        // Store in localStorage for client-side use
+        localStorage.setItem('jsonbin_api_key', apiKey);
+    }
+
+    async configureApiKey() {
+        const apiKey = prompt('Wprowadź swój JSONBin.io Master Key:');
+        if (apiKey && apiKey.trim()) {
+            this.setApiKey(apiKey.trim());
+            alert('API key został zapisany!');
+            return true;
+        }
+        return false;
+    }
+
+    // Favorites management
+    loadFavorites() {
+        const favs = localStorage.getItem('tibia_editor_favorites');
+        return favs ? JSON.parse(favs) : [];
+    }
+
+    saveFavorites() {
+        localStorage.setItem('tibia_editor_favorites', JSON.stringify(this.favorites));
+    }
+
+    addToFavorites(mapName) {
+        if (!this.favorites.includes(mapName)) {
+            this.favorites.push(mapName);
+            this.saveFavorites();
+            return true;
+        }
+        return false;
+    }
+
+    removeFromFavorites(mapName) {
+        const index = this.favorites.indexOf(mapName);
+        if (index > -1) {
+            this.favorites.splice(index, 1);
+            this.saveFavorites();
+            return true;
+        }
+        return false;
+    }
+
+    isFavorite(mapName) {
+        return this.favorites.includes(mapName);
+    }
+
+    getFavorites() {
+        return this.favorites.map(name => {
+            const map = this.loadMap(name);
+            return map ? { ...map, name } : null;
+        }).filter(Boolean);
+    }
+
+    // Categories
+    getCategories() {
+        return [
+            { id: 'castle', name: '🏰 Zamek', icon: '🏰' },
+            { id: 'city', name: '🏙️ Miasto', icon: '🏙️' },
+            { id: 'forest', name: '🌲 Las', icon: '🌲' },
+            { id: 'cave', name: '⛰️ Jaskinia', icon: '⛰️' },
+            { id: 'dungeon', name: '🗝️ Loch', icon: '🗝️' },
+            { id: 'village', name: '🏘️ Wioska', icon: '🏘️' },
+            { id: 'mountain', name: '🏔️ Góry', icon: '🏔️' },
+            { id: 'beach', name: '🏄 Plaża', icon: '🏄' },
+            { id: 'other', name: '📄 Inne', icon: '📄' }
+        ];
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════
    Bootstrap
-   ═══════════════════════════════════════════ */
+   ═══════════════════════════════════════════════════════════════ */
 window.addEventListener('DOMContentLoaded', () => {
     const container = document.getElementById('game-container');
-
     const game = new Phaser.Game({
-        type:   Phaser.AUTO,
         parent: 'game-container',
         width:  container.clientWidth,
         height: container.clientHeight,
@@ -1557,8 +2320,9 @@ window.addEventListener('DOMContentLoaded', () => {
             autoCenter: Phaser.Scale.NO_CENTER,
         },
         input: {
+            gamepad: false,
             mouse: {
-                target:       container,
+                capture: false,
                 preventDefaultWheel: true,
             },
         },
@@ -1575,26 +2339,311 @@ window.addEventListener('DOMContentLoaded', () => {
    ═══════════════════════════════════════════════════════════════ */
 class TilesetLibrary {
     constructor() {
-        this.storageKey = 'tibia_map_editor_tilesets';
-        this.tilesets = this.loadFromStorage();
+        this.githubRepo = 'advecore/map-editor';
+        this.releasesUrl = `https://api.github.com/repos/${this.githubRepo}/releases`;
+        this.tilesets = [];
+        this.githubToken = null; // Będzie ustawiane przez UI
+        this.loadFromGitHub();
     }
 
-    loadFromStorage() {
+    async loadFromGitHub() {
         try {
-            const stored = localStorage.getItem(this.storageKey);
-            return stored ? JSON.parse(stored) : [];
+            // Load from GitHub Releases
+            const response = await fetch(this.releasesUrl);
+            if (response.ok) {
+                const releases = await response.json();
+                this.tilesets = [];
+                
+                for (const release of releases) {
+                    if (release.tag_name.startsWith('tileset-')) {
+                        const tilesetData = {
+                            id: release.tag_name.replace('tileset-', ''),
+                            name: release.name,
+                            description: release.body,
+                            downloadUrl: release.assets[0]?.browser_download_url,
+                            previewUrl: release.assets[1]?.browser_download_url,
+                            author: release.author.login,
+                            license: release.assets[0]?.name?.includes('CC0') ? 'CC0' : 'Custom',
+                            downloadCount: release.assets[0]?.download_count || 0,
+                            createdAt: release.created_at,
+                            tags: this.extractTags(release.body)
+                        };
+                        this.tilesets.push(tilesetData);
+                    }
+                }
+            }
         } catch (error) {
-            console.error('Failed to load tilesets from storage:', error);
-            return [];
+            console.log('GitHub tilesets not found, loading from localStorage');
+            this.loadFromLocalStorage();
         }
     }
 
-    saveToStorage() {
+    loadFromLocalStorage() {
         try {
-            localStorage.setItem(this.storageKey, JSON.stringify(this.tilesets));
+            const stored = localStorage.getItem('tibia_map_editor_tilesets_local');
+            this.tilesets = stored ? JSON.parse(stored) : [];
         } catch (error) {
-            console.error('Failed to save tilesets to storage:', error);
+            this.tilesets = [];
         }
+    }
+
+    saveToLocalStorage() {
+        try {
+            localStorage.setItem('tibia_map_editor_tilesets_local', JSON.stringify(this.tilesets));
+        } catch (error) {
+            console.error('Failed to save to localStorage:', error);
+        }
+    }
+
+    extractTags(description) {
+        const tagsMatch = description.match(/Tags: (.+)/);
+        return tagsMatch ? tagsMatch[1].split(',').map(t => t.trim()) : [];
+    }
+
+    async uploadTileset(file, name, description, license, tags) {
+        if (!this.githubToken) {
+            throw new Error('GitHub token required for upload');
+        }
+
+        // Check if user is approved for uploads
+        const username = await this.getGitHubUsername();
+        if (!this.isApprovedUploader(username)) {
+            throw new Error('Upload access restricted to approved users only');
+        }
+
+        try {
+            // Convert file to base64
+            const base64 = await this.fileToBase64(file);
+            
+            // Create GitHub Release
+            const releaseData = {
+                tag_name: `tileset-${Date.now()}`,
+                name: name,
+                body: `${description}\n\nLicense: ${license}\nTags: ${tags.join(', ')}\n\n---\n*Free to use for commercial and non-commercial projects*`,
+                draft: false,
+                prerelease: false
+            };
+
+            const releaseResponse = await fetch(this.releasesUrl, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `token ${this.githubToken}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(releaseData)
+            });
+
+            if (!releaseResponse.ok) {
+                throw new Error('Failed to create release');
+            }
+
+            const release = await releaseResponse.json();
+            
+            // Upload tileset file
+            await this.uploadAsset(release.upload_url, file, `${name}_${license}.png`);
+            
+            // Upload preview thumbnail
+            const previewFile = await this.createPreview(file);
+            await this.uploadAsset(release.upload_url, previewFile, `${name}_preview.png`);
+
+            // Refresh library
+            await this.loadFromGitHub();
+            
+            return true;
+        } catch (error) {
+            console.error('Upload failed:', error);
+            throw error;
+        }
+    }
+
+    async uploadAsset(uploadUrl, file, filename) {
+        const formData = new FormData();
+        formData.append('file', file, filename);
+
+        const response = await fetch(uploadUrl.replace('{?name,label}', `?name=${filename}`), {
+            method: 'POST',
+            headers: {
+                'Authorization': `token ${this.githubToken}`,
+                'Content-Type': 'multipart/form-data',
+            },
+            body: formData
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to upload ${filename}`);
+        }
+    }
+
+    async createPreview(file) {
+        return new Promise((resolve) => {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                
+                // Create 128x128 preview
+                canvas.width = 128;
+                canvas.height = 128;
+                
+                // Scale and crop
+                const scale = Math.max(128 / img.width, 128 / img.height);
+                const x = (canvas.width - img.width * scale) / 2;
+                const y = (canvas.height - img.height * scale) / 2;
+                
+                ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
+                
+                canvas.toBlob(resolve, 'image/png');
+            };
+            img.src = URL.createObjectURL(file);
+        });
+    }
+
+    fileToBase64(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
+    }
+
+    setGitHubToken(token) {
+        this.githubToken = token;
+        localStorage.setItem('github_token', token);
+    }
+
+    loadGitHubToken() {
+        const token = localStorage.getItem('github_token');
+        if (token) {
+            this.githubToken = token;
+        }
+        return token;
+    }
+
+    async getGitHubUsername() {
+        try {
+            const response = await fetch('https://api.github.com/user', {
+                headers: {
+                    'Authorization': `token ${this.githubToken}`
+                }
+            });
+            if (response.ok) {
+                const userData = await response.json();
+                return userData.login;
+            }
+        } catch (error) {
+            console.error('Failed to get GitHub username:', error);
+        }
+        return null;
+    }
+
+    isApprovedUploader(username) {
+        const approvedUploaders = this.getApprovedUploaders();
+        return approvedUploaders.includes(username);
+    }
+
+    getApprovedUploaders() {
+        const stored = localStorage.getItem('approved_uploaders');
+        return stored ? JSON.parse(stored) : ['advecore'];
+    }
+
+    addApprovedUploader(username) {
+        const approved = this.getApprovedUploaders();
+        if (!approved.includes(username)) {
+            approved.push(username);
+            localStorage.setItem('approved_uploaders', JSON.stringify(approved));
+            return true;
+        }
+        return false;
+    }
+
+    removeApprovedUploader(username) {
+        const approved = this.getApprovedUploaders();
+        const index = approved.indexOf(username);
+        if (index > -1) {
+            approved.splice(index, 1);
+            localStorage.setItem('approved_uploaders', JSON.stringify(approved));
+            return true;
+        }
+        return false;
+    }
+
+    // Pending uploads system
+    async submitPendingUpload(file, name, description, license, tags, username) {
+        const pendingUpload = {
+            id: Date.now().toString(),
+            username: username,
+            name: name,
+            description: description,
+            license: license,
+            tags: tags,
+            file: await this.fileToBase64(file),
+            submittedAt: new Date().toISOString(),
+            status: 'pending'
+        };
+
+        const pending = this.getPendingUploads();
+        pending.push(pendingUpload);
+        localStorage.setItem('pending_uploads', JSON.stringify(pending));
+
+        return pendingUpload;
+    }
+
+    getPendingUploads() {
+        const stored = localStorage.getItem('pending_uploads');
+        return stored ? JSON.parse(stored) : [];
+    }
+
+    async approvePendingUpload(uploadId) {
+        const pending = this.getPendingUploads();
+        const uploadIndex = pending.findIndex(u => u.id === uploadId);
+        
+        if (uploadIndex === -1) return false;
+
+        const upload = pending[uploadIndex];
+        
+        try {
+            // Convert base64 back to file
+            const file = this.base64ToFile(upload.file, upload.name);
+            
+            // Upload to GitHub
+            await this.uploadTileset(file, upload.name, upload.description, upload.license, upload.tags);
+            
+            // Remove from pending
+            pending.splice(uploadIndex, 1);
+            localStorage.setItem('pending_uploads', JSON.stringify(pending));
+            
+            return true;
+        } catch (error) {
+            console.error('Failed to approve upload:', error);
+            return false;
+        }
+    }
+
+    rejectPendingUpload(uploadId) {
+        const pending = this.getPendingUploads();
+        const uploadIndex = pending.findIndex(u => u.id === uploadId);
+        
+        if (uploadIndex > -1) {
+            pending.splice(uploadIndex, 1);
+            localStorage.setItem('pending_uploads', JSON.stringify(pending));
+            return true;
+        }
+        return false;
+    }
+
+    base64ToFile(base64, filename) {
+        const arr = base64.split(',');
+        const mime = arr[0].match(/:(.*?);/)[1];
+        const bstr = atob(arr[1]);
+        let n = bstr.length;
+        const u8arr = new Uint8Array(n);
+        
+        while(n--){
+            u8arr[n] = bstr.charCodeAt(n);
+        }
+        
+        return new File([u8arr], filename, {type:mime});
     }
 
     addTileset(name, imageData, cols, rows, tileSize) {
@@ -1609,13 +2658,13 @@ class TilesetLibrary {
         };
 
         this.tilesets.push(tileset);
-        this.saveToStorage();
+        this.saveToGitHub();
         return tileset;
     }
 
     removeTileset(id) {
         this.tilesets = this.tilesets.filter(t => t.id !== id);
-        this.saveToStorage();
+        this.saveToGitHub();
     }
 
     getTileset(id) {
@@ -1645,7 +2694,7 @@ class TilesetLibrary {
 
     clearLibrary() {
         this.tilesets = [];
-        this.saveToStorage();
+        this.saveToGitHub();
     }
 }
 
