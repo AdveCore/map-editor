@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tibia Map Editor</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+</head>
+<body>
+    <div id="app">
+        <!-- Top Toolbar -->
+        <div id="toolbar">
+            <div class="toolbar-group">
+                <span class="toolbar-label">Warstwa:</span>
+                <button id="btn-ground" class="layer-btn active" data-layer="ground">🌱 Ground</button>
+                <button id="btn-decoration" class="layer-btn" data-layer="decoration">🌳 Decoration</button>
+                <button id="btn-both" class="layer-btn" data-layer="both">👁️ Wszystko</button>
+            </div>
+            <div class="toolbar-separator"></div>
+            <div class="toolbar-group">
+                <button id="btn-undo" class="tool-btn">&#x21b6; Cofnij</button>
+                <button id="btn-eraser" class="tool-btn">&#x1f9f9; Gumka</button>
+                <button id="btn-grid" class="tool-btn active">&#x229e; Siatka</button>
+                <button id="btn-reset-zoom" class="tool-btn">&#x1f50d; Reset zoom</button>
+                <button id="btn-last-tile" class="tool-btn">&#x1f449; Ostatni kafelek</button>
+                <button id="btn-fill" class="tool-btn">&#x1f7ea; Wypełnij</button>
+                <button id="btn-pick" class="tool-btn">&#x1f50d; Pipeta</button>
+                <button id="btn-clear-selection" class="tool-btn">&#x274c; Wyczyść</button>
+            </div>
+            <div class="toolbar-separator"></div>
+            <div class="toolbar-group">
+                <button id="btn-cave" class="tool-btn cave-btn">&#x26cf; Generate Cave</button>
+            </div>
+            <div class="toolbar-separator"></div>
+            <div class="toolbar-group export-group">
+                <input type="text" id="map-name" placeholder="Nazwa lokacji np. jaskinia_smoka">
+                <button id="btn-export" class="tool-btn export-btn">&#x1f4be; Eksportuj JSON</button>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div id="main-content">
+            <!-- Phaser Canvas -->
+            <div id="game-container"></div>
+
+            <!-- Right Panel - Tileset Palette -->
+            <div id="right-panel">
+                <h3>&#x1f3a8; Tileset Library</h3>
+                <div class="library-controls">
+                    <button id="btn-manage-library" class="tool-btn">&#x1f5da; Zarządzaj biblioteką</button>
+                    <button id="btn-export-library" class="tool-btn">&#x1f517; Eksportuj bibliotekę</button>
+                    <button id="btn-import-library" class="tool-btn">&#x1f515; Importuj bibliotekę</button>
+                </div>
+                <div class="upload-section">
+                    <label for="tileset-upload" class="upload-label">&#x1f4c2; Wgraj Tileset (.png / .jpg)</label>
+                    <input type="file" id="tileset-upload" accept=".png,.jpg,.jpeg">
+                </div>
+                <div id="tileset-list"></div>
+                <div id="palette-container">
+                    <canvas id="palette-canvas"></canvas>
+                    <div id="palette-controls">
+                        <button class="palette-zoom-btn" id="palette-zoom-in">+</button>
+                        <span id="palette-zoom-level">100%</span>
+                        <button class="palette-zoom-btn" id="palette-zoom-out">-</button>
+                        <button class="palette-zoom-btn" id="palette-zoom-reset">⟲</button>
+                    </div>
+                </div>
+                <div id="brush-info">
+                    <span>&#x1f58c; P&#x119;dzel: <strong id="brush-label">Brak</strong></span>
+                    <span id="tileset-info"></span>
+                </div>
+            </div>
+
+            <!-- Library Management Modal -->
+            <div id="library-modal" class="modal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2>&#x1f5da; Zarządzanie Biblioteką Tilesetów</h2>
+                        <button class="modal-close">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="library-stats">
+                            <span>Zapisane tilesety: <strong id="library-count">0</strong></span>
+                            <button id="btn-clear-library" class="tool-btn danger">&#x1f5d1; Wyczyść bibliotekę</button>
+                        </div>
+                        <div id="library-list"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Status Bar -->
+        <div id="status-bar">
+            <span id="cursor-pos">X: 0  Y: 0</span>
+            <span id="zoom-level">Zoom: 100%</span>
+            <span id="layer-indicator">Warstwa: Ground</span>
+            <span class="status-hint">PPM / &#x15a;PM: Przesuwanie &nbsp;|&nbsp; Scroll: Zoom &nbsp;|&nbsp; LPM: Rysuj &nbsp;|&nbsp; LPM+Drag na palecie: Zaznacz &nbsp;|&nbsp; Ctrl+LPM: Multi-select &nbsp;|&nbsp; Shift+LPM / &#x15a;PM na palecie: Przesuń</span>
+        </div>
+    </div>
+
+    <script src="game.js"></script>
+</body>
+</html>
